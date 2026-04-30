@@ -1,0 +1,24 @@
+{
+  "answer": "当前知识库未覆盖这个问题，无法在现有证据范围内稳定回答。",
+  "citations": [],
+  "evidence_ids": [],
+  "confidence": 0.0,
+  "abstain_reason": "no_retrieval_results",
+  "release_id": "dev-local",
+  "data_release_id": "data-week08-dev",
+  "index_release_id": "index-week08-dev",
+  "prompt_release_id": "prompt-week08-v1",
+  "trace_id": "trace-week08-no-answer",
+  "retrieved_contexts": [],
+  "retrieval_debug": {
+    "mode": "hybrid_rrf",
+    "rrf_k": 60,
+    "rerank_enabled": false,
+    "rerank_fallback": true,
+    "filters_applied": {
+      "product_line": "northstar_edge_gateway",
+      "index_release_id": "index-week08-dev"
+    },
+    "results": []
+  }
+}

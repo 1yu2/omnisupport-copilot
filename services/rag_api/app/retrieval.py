@@ -24,14 +24,19 @@ logger = logging.getLogger(__name__)
 @dataclass
 class RetrievalResult:
     chunk_id: str
+    evidence_id: str
     doc_id: str
     source_id: str
     content: str
     section_path: str
     page_no: int | None
+    title: str | None
+    bbox: str | None
     source_url: str | None
     doc_version: str | None
     section_type: str
+    data_release_id: str | None = None
+    index_release_id: str | None = None
 
     vector_score: float = 0.0
     fts_score: float = 0.0
@@ -41,6 +46,53 @@ class RetrievalResult:
     @property
     def final_score(self) -> float:
         return self.rerank_score if self.rerank_score is not None else self.rrf_score
+
+    def debug_scores(self) -> dict:
+        return {
+            "chunk_id": self.chunk_id,
+            "vector_score": self.vector_score,
+            "fts_score": self.fts_score,
+            "rrf_score": self.rrf_score,
+            "rerank_score": self.rerank_score,
+            "final_score": self.final_score,
+        }
+
+
+def _apply_metadata_filters(
+    where_clauses: list[str],
+    params: list,
+    *,
+    product_line: str | None = None,
+    index_release_id: str | None = None,
+    data_release_id: str | None = None,
+    visibility_scope: str | None = None,
+    entitlement_tier: str | None = None,
+    status: str | None = None,
+    quality_status: str | None = None,
+) -> None:
+    if index_release_id:
+        where_clauses.append(f"ks.index_release_id = ${len(params)+1}")
+        params.append(index_release_id)
+    if data_release_id:
+        where_clauses.append(f"COALESCE(ks.data_release_id, kd.data_release_id) = ${len(params)+1}")
+        params.append(data_release_id)
+    if product_line and product_line != "any":
+        where_clauses.append(f"kd.product_line = ${len(params)+1}")
+        params.append(product_line)
+    if visibility_scope:
+        where_clauses.append(f"kd.visibility_scope = ${len(params)+1}")
+        params.append(visibility_scope)
+    if entitlement_tier:
+        where_clauses.append(f"kd.entitlement_tier = ${len(params)+1}")
+        params.append(entitlement_tier)
+    if status:
+        where_clauses.append(f"kd.status = ${len(params)+1}")
+        params.append(status)
+    if quality_status:
+        where_clauses.append(
+            f"COALESCE(kd.quality_status, kd.quality_gate::text) = ${len(params)+1}"
+        )
+        params.append(quality_status)
 
 
 # ── 嵌入查询向量生成 ──────────────────────────────────────────────────────────
@@ -81,8 +133,13 @@ async def vector_search(
     conn,
     query: str,
     top_k: int,
-    product_line: str | None,
-    index_release_id: str,
+    product_line: str | None = None,
+    index_release_id: str | None = None,
+    data_release_id: str | None = None,
+    visibility_scope: str | None = None,
+    entitlement_tier: str | None = None,
+    status: str | None = None,
+    quality_status: str | None = None,
 ) -> list[RetrievalResult]:
     """ANN 余弦相似度检索（pgvector）"""
     try:
@@ -91,12 +148,19 @@ async def vector_search(
         logger.warning(f"Embedding failed, skipping vector search: {e}")
         return []
 
-    where_clauses = ["ks.embedding IS NOT NULL", "ks.index_release_id = $2"]
-    params: list = [query_vec, index_release_id]
-
-    if product_line and product_line != "any":
-        where_clauses.append(f"kd.product_line = ${len(params)+1}")
-        params.append(product_line)
+    where_clauses = ["ks.embedding IS NOT NULL"]
+    params: list = [query_vec]
+    _apply_metadata_filters(
+        where_clauses,
+        params,
+        product_line=product_line,
+        index_release_id=index_release_id,
+        data_release_id=data_release_id,
+        visibility_scope=visibility_scope,
+        entitlement_tier=entitlement_tier,
+        status=status,
+        quality_status=quality_status,
+    )
 
     params.append(top_k)
 
@@ -104,17 +168,23 @@ async def vector_search(
         f"""
         SELECT
             ks.section_id   AS chunk_id,
+            COALESCE(ea.anchor_id, ks.section_id) AS evidence_id,
             ks.doc_id,
             ks.source_id,
             ks.content,
             ks.section_path,
             ks.section_type,
             ks.page_no,
+            ks.bbox,
+            ks.data_release_id,
+            ks.index_release_id,
+            kd.title,
             kd.source_url,
             kd.doc_version,
             1 - (ks.embedding <=> $1::vector) AS score
         FROM knowledge_section ks
         JOIN knowledge_doc kd ON ks.doc_id = kd.doc_id
+        LEFT JOIN evidence_anchor ea ON ea.chunk_id = ks.section_id
         WHERE {" AND ".join(where_clauses)}
         ORDER BY ks.embedding <=> $1::vector
         LIMIT ${len(params)}
@@ -125,14 +195,19 @@ async def vector_search(
     return [
         RetrievalResult(
             chunk_id=r["chunk_id"],
+            evidence_id=r["evidence_id"],
             doc_id=r["doc_id"],
             source_id=r["source_id"],
             content=r["content"],
             section_path=r["section_path"],
             section_type=r["section_type"],
             page_no=r["page_no"],
+            title=r["title"],
+            bbox=r["bbox"],
             source_url=r["source_url"],
             doc_version=r["doc_version"],
+            data_release_id=r["data_release_id"],
+            index_release_id=r["index_release_id"],
             vector_score=float(r["score"]),
         )
         for r in rows
@@ -145,19 +220,30 @@ async def fts_search(
     conn,
     query: str,
     top_k: int,
-    product_line: str | None,
-    index_release_id: str,
+    product_line: str | None = None,
+    index_release_id: str | None = None,
+    data_release_id: str | None = None,
+    visibility_scope: str | None = None,
+    entitlement_tier: str | None = None,
+    status: str | None = None,
+    quality_status: str | None = None,
 ) -> list[RetrievalResult]:
     """PostgreSQL 全文检索（tsvector + tsquery）"""
     where_clauses = [
-        "to_tsvector('english', ks.content) @@ plainto_tsquery('english', $1)",
-        "ks.index_release_id = $2",
+        "to_tsvector('english', ks.content) @@ plainto_tsquery('english', $1)"
     ]
-    params: list = [query, index_release_id]
-
-    if product_line and product_line != "any":
-        where_clauses.append(f"kd.product_line = ${len(params)+1}")
-        params.append(product_line)
+    params: list = [query]
+    _apply_metadata_filters(
+        where_clauses,
+        params,
+        product_line=product_line,
+        index_release_id=index_release_id,
+        data_release_id=data_release_id,
+        visibility_scope=visibility_scope,
+        entitlement_tier=entitlement_tier,
+        status=status,
+        quality_status=quality_status,
+    )
 
     params.append(top_k)
 
@@ -166,18 +252,24 @@ async def fts_search(
             f"""
             SELECT
                 ks.section_id   AS chunk_id,
+                COALESCE(ea.anchor_id, ks.section_id) AS evidence_id,
                 ks.doc_id,
                 ks.source_id,
                 ks.content,
                 ks.section_path,
                 ks.section_type,
                 ks.page_no,
+                ks.bbox,
+                ks.data_release_id,
+                ks.index_release_id,
+                kd.title,
                 kd.source_url,
                 kd.doc_version,
                 ts_rank_cd(to_tsvector('english', ks.content),
                            plainto_tsquery('english', $1)) AS score
             FROM knowledge_section ks
             JOIN knowledge_doc kd ON ks.doc_id = kd.doc_id
+            LEFT JOIN evidence_anchor ea ON ea.chunk_id = ks.section_id
             WHERE {" AND ".join(where_clauses)}
             ORDER BY score DESC
             LIMIT ${len(params)}
@@ -191,14 +283,19 @@ async def fts_search(
     return [
         RetrievalResult(
             chunk_id=r["chunk_id"],
+            evidence_id=r["evidence_id"],
             doc_id=r["doc_id"],
             source_id=r["source_id"],
             content=r["content"],
             section_path=r["section_path"],
             section_type=r["section_type"],
             page_no=r["page_no"],
+            title=r["title"],
+            bbox=r["bbox"],
             source_url=r["source_url"],
             doc_version=r["doc_version"],
+            data_release_id=r["data_release_id"],
+            index_release_id=r["index_release_id"],
             fts_score=float(r["score"]),
         )
         for r in rows
@@ -292,6 +389,11 @@ async def hybrid_retrieve(
     top_k: int = 5,
     product_line: str | None = None,
     index_release_id: str = "index-v0.1.0",
+    data_release_id: str | None = None,
+    visibility_scope: str | None = None,
+    entitlement_tier: str | None = None,
+    status: str | None = None,
+    quality_status: str | None = None,
     rerank: bool = True,
     min_score: float = 0.0,
 ) -> list[RetrievalResult]:
@@ -300,8 +402,30 @@ async def hybrid_retrieve(
     """
     # 两路并行检索
     vec_results, fts_results = await asyncio.gather(
-        vector_search(conn, query, top_k * 2, product_line, index_release_id),
-        fts_search(conn, query, top_k * 2, product_line, index_release_id),
+        vector_search(
+            conn,
+            query,
+            top_k * 2,
+            product_line=product_line,
+            index_release_id=index_release_id,
+            data_release_id=data_release_id,
+            visibility_scope=visibility_scope,
+            entitlement_tier=entitlement_tier,
+            status=status,
+            quality_status=quality_status,
+        ),
+        fts_search(
+            conn,
+            query,
+            top_k * 2,
+            product_line=product_line,
+            index_release_id=index_release_id,
+            data_release_id=data_release_id,
+            visibility_scope=visibility_scope,
+            entitlement_tier=entitlement_tier,
+            status=status,
+            quality_status=quality_status,
+        ),
     )
 
     # RRF 融合
@@ -317,5 +441,4 @@ async def hybrid_retrieve(
         results = [r for r in results if r.final_score >= min_score]
 
     return results
-
 

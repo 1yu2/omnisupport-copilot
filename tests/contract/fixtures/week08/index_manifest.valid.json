@@ -1,0 +1,18 @@
+{
+  "index_release_id": "index-week08-dev",
+  "data_release_id": "data-week08-dev",
+  "chunk_strategy_version": "section_aware_v1",
+  "embedding_model": "text-embedding-3-small",
+  "embedding_dim": 1536,
+  "provider": "openai",
+  "built_at": "2026-04-30T00:00:00Z",
+  "source_table": "knowledge_section",
+  "total_chunks": 128,
+  "embedded_chunks": 120,
+  "skipped_chunks": 8,
+  "error_count": 0,
+  "quality_gate": "warn",
+  "notes": "Sample Week8 manifest fixture.",
+  "warnings": ["8 chunks skipped because Week7 gate marked them not ready"],
+  "elapsed_sec": 12.4
+}

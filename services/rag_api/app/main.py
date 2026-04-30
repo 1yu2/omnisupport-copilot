@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 
 from app.config import settings
 from app.observability import setup_telemetry
-from app.routers import health, query, admin
+from app.routers import health, query, admin, rag
 
 
 @asynccontextmanager
@@ -67,5 +67,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ── 路由注册 ─────────────────────────────────────────────────────────────────
 app.include_router(health.router)
+app.include_router(rag.router)
 app.include_router(query.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1/admin")

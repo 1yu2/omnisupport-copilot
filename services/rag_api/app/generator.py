@@ -166,3 +166,56 @@ def _fallback_answer(query: str, chunks) -> str:
         f"（注：AI 服务暂时不可用，以下为最相关知识片段）\n\n"
         f"**{top.section_path}**\n\n{top.content[:500]}..."
     )
+
+
+# ── Week8 structured answer path ─────────────────────────────────────────────
+
+def load_prompt_template(name: str) -> str:
+    prompt_dir = os.path.join(os.path.dirname(__file__), "prompts")
+    path = os.path.join(prompt_dir, name)
+    try:
+        with open(path, encoding="utf-8") as f:
+            return f.read()
+    except FileNotFoundError:
+        logger.warning("Prompt template missing: %s", path)
+        return ""
+
+
+async def generate_grounded_answer(
+    *,
+    question: str,
+    chunks,
+    prompt_release_id: str,
+) -> tuple[str, float, str | None]:
+    """Generate a Week8 contract response body.
+
+    Citations are intentionally not created here. They are derived by the router
+    from retrieval evidence metadata so the LLM cannot invent source fields.
+    """
+    if not chunks:
+        no_answer = load_prompt_template("no_answer_v1.md").strip()
+        return (
+            no_answer or "当前知识库未覆盖这个问题，无法在现有证据范围内稳定回答。",
+            0.0,
+            "no_retrieval_results",
+        )
+
+    confidence = _estimate_confidence(chunks)
+    if confidence < settings.retrieval_min_score:
+        return (
+            "已检索到候选证据，但置信度低于当前门禁，建议补充证据后再回答。",
+            confidence,
+            "low_retrieval_confidence",
+        )
+
+    if not settings.anthropic_api_key:
+        top = chunks[0]
+        answer = (
+            "AI 生成服务未配置，以下返回最相关证据摘要作为可审计 fallback：\n\n"
+            f"{top.content[:700]}"
+        )
+        return answer, confidence, None
+
+    # Keep the existing Claude path for now, but do not trust it for citations.
+    answer, _citations, llm_confidence = await generate_answer(question, chunks, prompt_release_id)
+    return answer, max(confidence, llm_confidence), None

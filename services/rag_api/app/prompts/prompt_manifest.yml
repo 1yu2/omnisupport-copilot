@@ -1,0 +1,7 @@
+prompt_release_id: prompt-week08-v1
+description: Week8 evidence-grounded RAG prompt set.
+created_at: "2026-04-30T00:00:00Z"
+templates:
+  system: system_v1.md
+  answer: answer_v1.md
+  no_answer: no_answer_v1.md

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnisupport.local/contracts/service/rag_response.schema.json",
+  "title": "Week8 RAG Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "answer",
+    "citations",
+    "evidence_ids",
+    "confidence",
+    "abstain_reason",
+    "release_id",
+    "data_release_id",
+    "index_release_id",
+    "prompt_release_id",
+    "trace_id"
+  ],
+  "properties": {
+    "answer": { "type": "string" },
+    "citations": {
+      "type": "array",
+      "items": { "$ref": "citation.schema.json" }
+    },
+    "evidence_ids": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "abstain_reason": { "type": ["string", "null"] },
+    "release_id": { "type": "string", "minLength": 1 },
+    "data_release_id": { "type": ["string", "null"] },
+    "index_release_id": { "type": "string", "minLength": 1 },
+    "prompt_release_id": { "type": "string", "minLength": 1 },
+    "trace_id": { "type": "string", "minLength": 1 },
+    "retrieved_contexts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chunk_id", "content", "score"],
+        "properties": {
+          "chunk_id": { "type": "string" },
+          "content": { "type": "string" },
+          "score": { "type": "number" },
+          "citation": { "$ref": "citation.schema.json" }
+        }
+      }
+    },
+    "retrieval_debug": {
+      "anyOf": [
+        { "$ref": "retrieval_debug.schema.json" },
+        { "type": "null" }
+      ]
+    }
+  }
+}

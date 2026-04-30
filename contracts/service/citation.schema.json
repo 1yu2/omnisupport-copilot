@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnisupport.local/contracts/service/citation.schema.json",
+  "title": "Week8 Citation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["evidence_id", "chunk_id", "doc_id", "source_id"],
+  "properties": {
+    "evidence_id": { "type": "string", "minLength": 1 },
+    "chunk_id": { "type": "string", "minLength": 1 },
+    "section_id": { "type": ["string", "null"] },
+    "doc_id": { "type": "string", "minLength": 1 },
+    "source_id": { "type": "string", "minLength": 1 },
+    "title": { "type": ["string", "null"] },
+    "page_no": { "type": ["integer", "null"], "minimum": 1 },
+    "section_path": { "type": ["string", "null"] },
+    "bbox": { "type": ["string", "array", "object", "null"] },
+    "source_url": { "type": ["string", "null"] },
+    "doc_version": { "type": ["string", "null"] },
+    "quote": { "type": ["string", "null"] },
+    "score": { "type": ["number", "null"], "minimum": 0 }
+  }
+}

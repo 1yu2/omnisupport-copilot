@@ -10,6 +10,7 @@ from pipelines.data_factory import assets as data_factory_assets
 from pipelines.data_factory import checks as data_factory_checks
 from pipelines.data_factory.jobs import week06_data_factory_job
 from pipelines.data_factory.resources import build_week06_resources
+from pipelines.indexing import assets as indexing_assets
 from pipelines.ingestion import assets as ingestion_assets
 from pipelines.parse_normalize import assets as parse_assets
 from pipelines.lakehouse import assets as lakehouse_assets
@@ -22,6 +23,7 @@ all_assets = load_assets_from_modules(
         parse_assets,
         lakehouse_assets,
         data_factory_assets,
+        indexing_assets,
     ]
 )
 

@@ -1,0 +1,35 @@
+# Week8 smoke cases for the classroom RAG loop.
+# The runner ships with these same cases as built-in defaults so it does not
+# require PyYAML in the student devbox.
+cases:
+  - id: known_hit_edge_gateway
+    question: "How do I recover an Edge Gateway after firmware upgrade failure?"
+    product_line: "edge-gateway"
+    top_k: 5
+    expected: "answer_or_structured_abstain"
+  - id: lexical_keyword_firmware
+    question: "firmware rollback gateway recovery"
+    product_line: "edge-gateway"
+    top_k: 5
+    expected: "answer_or_structured_abstain"
+  - id: semantic_paraphrase
+    question: "What should support do when a device upgrade breaks connectivity?"
+    product_line: "edge-gateway"
+    top_k: 5
+    expected: "answer_or_structured_abstain"
+  - id: product_line_filter
+    question: "How do I recover an Edge Gateway after firmware upgrade failure?"
+    product_line: "billing"
+    top_k: 5
+    expected: "answer_or_structured_abstain"
+  - id: no_answer
+    question: "What is the private roadmap for an unreleased satellite product?"
+    product_line: "edge-gateway"
+    top_k: 5
+    expected: "structured_abstain"
+  - id: permission_like_filter
+    question: "Show internal-only recovery runbooks."
+    product_line: "edge-gateway"
+    visibility_scope: "public"
+    top_k: 5
+    expected: "answer_or_structured_abstain"

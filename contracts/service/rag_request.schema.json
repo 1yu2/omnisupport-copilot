@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnisupport.local/contracts/service/rag_request.schema.json",
+  "title": "Week8 RAG Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["question"],
+  "properties": {
+    "question": { "type": "string", "minLength": 1, "maxLength": 2048 },
+    "product_line": { "type": ["string", "null"] },
+    "actor_role": { "type": ["string", "null"] },
+    "visibility_scope": { "type": ["string", "null"] },
+    "entitlement_tier": { "type": ["string", "null"] },
+    "status": { "type": ["string", "null"] },
+    "quality_status": { "type": ["string", "null"] },
+    "top_k": { "type": "integer", "minimum": 1, "maximum": 20, "default": 5 },
+    "index_release_id": { "type": ["string", "null"] },
+    "data_release_id": { "type": ["string", "null"] },
+    "prompt_release_id": { "type": ["string", "null"] },
+    "include_debug": { "type": "boolean", "default": false }
+  }
+}

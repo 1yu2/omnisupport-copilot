@@ -1,0 +1,70 @@
+{
+  "answer": "Use the firmware recovery procedure and verify power stability before retrying. Cite the recovery guide before giving any next step.",
+  "citations": [
+    {
+      "evidence_id": "ev-edge-001",
+      "chunk_id": "chunk-edge-001",
+      "section_id": "chunk-edge-001",
+      "doc_id": "doc-edge-recovery",
+      "source_id": "src-edge-guide",
+      "title": "Edge Gateway Recovery Guide",
+      "page_no": 12,
+      "section_path": "Firmware > Recovery",
+      "bbox": null,
+      "source_url": "s3://omni-raw-documents/edge-recovery.pdf",
+      "doc_version": "2026.04",
+      "quote": "Recovery mode should be used after failed firmware upgrade.",
+      "score": 0.91
+    }
+  ],
+  "evidence_ids": ["ev-edge-001"],
+  "confidence": 0.82,
+  "abstain_reason": null,
+  "release_id": "dev-local",
+  "data_release_id": "data-week08-dev",
+  "index_release_id": "index-week08-dev",
+  "prompt_release_id": "prompt-week08-v1",
+  "trace_id": "trace-week08-001",
+  "retrieved_contexts": [
+    {
+      "chunk_id": "chunk-edge-001",
+      "content": "Recovery mode should be used after failed firmware upgrade.",
+      "score": 0.91,
+      "citation": {
+        "evidence_id": "ev-edge-001",
+        "chunk_id": "chunk-edge-001",
+        "section_id": "chunk-edge-001",
+        "doc_id": "doc-edge-recovery",
+        "source_id": "src-edge-guide",
+        "title": "Edge Gateway Recovery Guide",
+        "page_no": 12,
+        "section_path": "Firmware > Recovery",
+        "bbox": null,
+        "source_url": "s3://omni-raw-documents/edge-recovery.pdf",
+        "doc_version": "2026.04",
+        "quote": "Recovery mode should be used after failed firmware upgrade.",
+        "score": 0.91
+      }
+    }
+  ],
+  "retrieval_debug": {
+    "mode": "hybrid_rrf_rerank",
+    "rrf_k": 60,
+    "rerank_enabled": true,
+    "rerank_fallback": false,
+    "filters_applied": {
+      "product_line": "northstar_edge_gateway",
+      "index_release_id": "index-week08-dev"
+    },
+    "results": [
+      {
+        "chunk_id": "chunk-edge-001",
+        "vector_score": 0.84,
+        "fts_score": 0.31,
+        "rrf_score": 0.0325,
+        "rerank_score": 0.91,
+        "final_score": 0.91
+      }
+    ]
+  }
+}

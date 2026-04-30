@@ -92,3 +92,76 @@ class ReleaseInfoResponse(BaseModel):
     data_release_id: str
     index_release_id: str
     prompt_release_id: str
+
+
+# ── Week8 RAG contract models ────────────────────────────────────────────────
+
+class Citation(BaseModel):
+    evidence_id: str
+    chunk_id: str
+    section_id: Optional[str] = None
+    doc_id: str
+    source_id: str
+    title: Optional[str] = None
+    page_no: Optional[int] = None
+    section_path: Optional[str] = None
+    bbox: Optional[str] = None
+    source_url: Optional[str] = None
+    doc_version: Optional[str] = None
+    quote: Optional[str] = None
+    score: Optional[float] = None
+
+
+class RetrievalContext(BaseModel):
+    chunk_id: str
+    content: str
+    score: float
+    citation: Citation
+
+
+class RetrievalDebugItem(BaseModel):
+    chunk_id: str
+    vector_score: Optional[float] = None
+    fts_score: Optional[float] = None
+    rrf_score: Optional[float] = None
+    rerank_score: Optional[float] = None
+    final_score: float
+
+
+class RetrievalDebugPayload(BaseModel):
+    mode: Literal["vector", "fts", "hybrid_rrf", "hybrid_rrf_rerank"] = "hybrid_rrf"
+    rrf_k: int = 60
+    rerank_enabled: bool = False
+    rerank_fallback: bool = False
+    filters_applied: dict
+    results: List[RetrievalDebugItem]
+
+
+class RagAnswerRequest(BaseModel):
+    question: str = Field(..., min_length=1, max_length=2048)
+    product_line: Optional[str] = None
+    actor_role: Optional[str] = None
+    visibility_scope: Optional[str] = None
+    entitlement_tier: Optional[str] = None
+    status: Optional[str] = None
+    quality_status: Optional[str] = None
+    top_k: int = Field(default=5, ge=1, le=20)
+    index_release_id: Optional[str] = None
+    data_release_id: Optional[str] = None
+    prompt_release_id: Optional[str] = None
+    include_debug: bool = False
+
+
+class RagAnswerResponse(BaseModel):
+    answer: str
+    citations: List[Citation]
+    evidence_ids: List[str]
+    confidence: float = Field(ge=0.0, le=1.0)
+    abstain_reason: Optional[str]
+    release_id: str
+    data_release_id: Optional[str]
+    index_release_id: str
+    prompt_release_id: str
+    trace_id: str
+    retrieved_contexts: Optional[List[RetrievalContext]] = None
+    retrieval_debug: Optional[RetrievalDebugPayload] = None

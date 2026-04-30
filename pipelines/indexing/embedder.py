@@ -14,13 +14,17 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import os
 import sys
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Sequence
+
+from pipelines.indexing.index_manifest import build_manifest
+from pipelines.indexing.reporting import write_index_build_outputs
 
 logger = logging.getLogger(__name__)
 
@@ -70,6 +74,8 @@ class EmbeddingProvider:
 
     def _init_voyage(self):
         try:
+            if not os.environ.get("VOYAGE_API_KEY"):
+                return None
             import voyageai
             client = voyageai.Client(api_key=os.environ.get("VOYAGE_API_KEY", ""))
             # 测试连通性
@@ -80,6 +86,8 @@ class EmbeddingProvider:
 
     def _init_openai(self, model: str):
         try:
+            if not os.environ.get("OPENAI_API_KEY"):
+                return None
             from openai import OpenAI
             client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
             logger.info(f"Using OpenAI embeddings ({model}, dim=1536)")
@@ -120,16 +128,33 @@ class EmbeddingProvider:
         self._init_backend()
         return self._backend[3]
 
+    @property
+    def provider(self) -> str:
+        self._init_backend()
+        return self._backend[0]
+
+    @property
+    def model(self) -> str:
+        self._init_backend()
+        return self._backend[2]
+
 
 # ── 索引构建器 ────────────────────────────────────────────────────────────────
 
 @dataclass
 class IndexStats:
+    index_release_id: str = ""
+    data_release_id: str = ""
+    chunk_strategy_version: str = ""
+    provider: str = "unknown"
+    embedding_model: str = "unknown"
+    embedding_dim: int = 0
     total_chunks: int = 0
     embedded: int = 0
     skipped: int = 0
     errors: int = 0
     elapsed_sec: float = 0.0
+    warnings: list[str] = field(default_factory=list)
 
 
 async def build_index(
@@ -137,6 +162,9 @@ async def build_index(
     batch_size: int = 64,
     doc_id: str | None = None,         # None = 全量
     dry_run: bool = False,
+    data_release_id: str = "data-week08-dev",
+    chunk_strategy_version: str = "section_aware_v1",
+    report_dir: str | Path = "reports/week08",
 ) -> IndexStats:
     """
     从 knowledge_section 读取未索引的 chunks，
@@ -144,7 +172,11 @@ async def build_index(
     """
     from pipelines.ingestion.db import acquire
 
-    stats = IndexStats()
+    stats = IndexStats(
+        index_release_id=index_release_id,
+        data_release_id=data_release_id,
+        chunk_strategy_version=chunk_strategy_version,
+    )
     provider = EmbeddingProvider()
     t0 = time.time()
 
@@ -174,6 +206,33 @@ async def build_index(
             logger.info("[dry-run] Skipping actual embedding generation")
             stats.skipped = stats.total_chunks
             stats.elapsed_sec = time.time() - t0
+            stats.provider = "dry_run"
+            stats.embedding_model = "dry_run"
+            stats.embedding_dim = EMBEDDING_DIM
+            stats.warnings.append("dry_run=true; embeddings were not generated")
+            _write_report(stats, report_dir)
+            return stats
+
+        try:
+            stats.provider = provider.provider
+            stats.embedding_model = provider.model
+            stats.embedding_dim = provider.dim
+        except Exception as e:
+            stats.errors = stats.total_chunks
+            stats.elapsed_sec = time.time() - t0
+            stats.warnings.append(f"embedding provider unavailable: {e}")
+            _write_report(stats, report_dir)
+            return stats
+
+        if stats.embedding_dim != EMBEDDING_DIM:
+            stats.errors = stats.total_chunks
+            stats.skipped = stats.total_chunks
+            stats.elapsed_sec = time.time() - t0
+            stats.warnings.append(
+                f"dimension mismatch: provider returned {stats.embedding_dim}, "
+                f"but knowledge_section.embedding is vector({EMBEDDING_DIM})"
+            )
+            _write_report(stats, report_dir)
             return stats
 
         # 批量处理
@@ -198,13 +257,18 @@ async def build_index(
                         SET embedding = $1::vector,
                             embedding_model = $2,
                             embedding_dim = $3,
-                            index_release_id = $4
-                        WHERE section_id = $5
+                            index_release_id = $4,
+                            data_release_id = $5,
+                            chunk_strategy_version = $6,
+                            indexed_at = NOW()
+                        WHERE section_id = $7
                         """,
                         vector,
-                        provider._backend[2] if provider._backend else "unknown",
-                        provider.dim,
+                        stats.embedding_model,
+                        stats.embedding_dim,
                         index_release_id,
+                        data_release_id,
+                        chunk_strategy_version,
                         row_id,
                     )
                     stats.embedded += 1
@@ -221,6 +285,7 @@ async def build_index(
             UPDATE knowledge_doc kd
             SET chunk_count = sub.cnt,
                 index_release_id = $1,
+                data_release_id = $2,
                 indexed_at = NOW()
             FROM (
                 SELECT doc_id, COUNT(*) AS cnt
@@ -231,6 +296,47 @@ async def build_index(
             WHERE kd.doc_id = sub.doc_id
             """,
             index_release_id,
+            data_release_id,
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO index_manifest (
+                index_release_id, data_release_id, chunk_strategy_version,
+                embedding_model, embedding_dim, provider, source_table,
+                total_chunks, embedded_chunks, skipped_chunks, error_count,
+                quality_gate, notes, warnings
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, 'knowledge_section',
+                    $7, $8, $9, $10, $11, $12, $13::jsonb)
+            ON CONFLICT (index_release_id) DO UPDATE
+            SET data_release_id = EXCLUDED.data_release_id,
+                chunk_strategy_version = EXCLUDED.chunk_strategy_version,
+                embedding_model = EXCLUDED.embedding_model,
+                embedding_dim = EXCLUDED.embedding_dim,
+                provider = EXCLUDED.provider,
+                built_at = NOW(),
+                total_chunks = EXCLUDED.total_chunks,
+                embedded_chunks = EXCLUDED.embedded_chunks,
+                skipped_chunks = EXCLUDED.skipped_chunks,
+                error_count = EXCLUDED.error_count,
+                quality_gate = EXCLUDED.quality_gate,
+                notes = EXCLUDED.notes,
+                warnings = EXCLUDED.warnings
+            """,
+            index_release_id,
+            data_release_id,
+            chunk_strategy_version,
+            stats.embedding_model,
+            stats.embedding_dim,
+            stats.provider,
+            stats.total_chunks,
+            stats.embedded,
+            stats.skipped,
+            stats.errors,
+            "fail" if stats.errors else ("warn" if stats.skipped else "pass"),
+            "Week8 index build completed",
+            json.dumps(stats.warnings, ensure_ascii=False),
         )
 
         # 启用向量索引（首次构建后）
@@ -241,7 +347,28 @@ async def build_index(
         f"Index build complete: {stats.embedded} embedded, "
         f"{stats.errors} errors, {stats.elapsed_sec:.1f}s elapsed"
     )
+    _write_report(stats, report_dir)
     return stats
+
+
+def _write_report(stats: IndexStats, report_dir: str | Path) -> None:
+    manifest = build_manifest(
+        index_release_id=stats.index_release_id,
+        data_release_id=stats.data_release_id,
+        chunk_strategy_version=stats.chunk_strategy_version,
+        embedding_model=stats.embedding_model,
+        embedding_dim=stats.embedding_dim or EMBEDDING_DIM,
+        provider=stats.provider,
+        source_table="knowledge_section",
+        total_chunks=stats.total_chunks,
+        embedded_chunks=stats.embedded,
+        skipped_chunks=stats.skipped,
+        error_count=stats.errors,
+        warnings=stats.warnings,
+        elapsed_sec=stats.elapsed_sec,
+    )
+    md_path, json_path = write_index_build_outputs(manifest, report_dir)
+    logger.info("Index reports written: %s %s", md_path, json_path)
 
 
 async def _ensure_vector_index(conn):
@@ -276,12 +403,23 @@ def main():
     parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--doc-id", default=None)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--data-release-id", default=os.environ.get("WEEK08_DATA_RELEASE_ID", "data-week08-dev"))
+    parser.add_argument("--chunk-strategy-version", default=os.environ.get("WEEK08_CHUNK_STRATEGY_VERSION", "section_aware_v1"))
+    parser.add_argument("--report-dir", default=os.environ.get("WEEK08_REPORT_DIR", "reports/week08"))
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 
     stats = asyncio.run(
-        build_index(args.index_release_id, args.batch_size, args.doc_id, args.dry_run)
+        build_index(
+            args.index_release_id,
+            args.batch_size,
+            args.doc_id,
+            args.dry_run,
+            args.data_release_id,
+            args.chunk_strategy_version,
+            args.report_dir,
+        )
     )
     sys.exit(1 if stats.errors > 0 else 0)
 

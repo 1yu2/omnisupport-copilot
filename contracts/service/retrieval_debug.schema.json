@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://omnisupport.local/contracts/service/retrieval_debug.schema.json",
+  "title": "Week8 Retrieval Debug",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["mode", "results"],
+  "properties": {
+    "mode": { "type": "string", "enum": ["vector", "fts", "hybrid_rrf", "hybrid_rrf_rerank"] },
+    "rrf_k": { "type": "integer", "minimum": 1, "default": 60 },
+    "rerank_enabled": { "type": "boolean" },
+    "rerank_fallback": { "type": "boolean" },
+    "filters_applied": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+    },
+    "results": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["chunk_id", "final_score"],
+        "properties": {
+          "chunk_id": { "type": "string" },
+          "vector_score": { "type": ["number", "null"] },
+          "fts_score": { "type": ["number", "null"] },
+          "rrf_score": { "type": ["number", "null"] },
+          "rerank_score": { "type": ["number", "null"] },
+          "final_score": { "type": "number" }
+        }
+      }
+    }
+  }
+}
