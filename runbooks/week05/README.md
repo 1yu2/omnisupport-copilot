@@ -9,6 +9,20 @@
 - 本周不引入 dbt Cloud、MetricFlow、Snowflake、BigQuery、Spark 或 Trino。
 - 本周不做 NL2SQL，Agent 只能通过白名单工具查询指标。
 
+## Code Structure Map
+
+录播前建议先用这张图解释 Week05 的代码结构：PostgreSQL 原始/事实表先进入 dbt staging，再进入 intermediate 业务加工层，最后形成 marts、安全视图、metric registry 和 Tool API 查询入口。
+
+![Week05 analytics code structure](../../docs/assets/week05/analytics-code-structure.png)
+
+讲解顺序：
+- `analytics/models/sources.yml` 定义 PostgreSQL source 表。
+- `analytics/models/staging/` 做轻度清洗、字段标准化和类型统一。
+- `analytics/models/intermediate/` 做业务含义加工，例如是否打开、是否 P1、是否 SLA 超期。
+- `analytics/models/marts/` 产出 `support_case_mart`、`support_kpi_mart` 和 `agent_tool_input_view`。
+- `analytics/metric_registry_v1.yml` 定义指标、维度和角色白名单。
+- `services/tool_api/app/kpi_query.py` 通过参数化查询安全视图，只返回治理后的 KPI 行。
+
 ## 1. 启动依赖
 
 ```bash
