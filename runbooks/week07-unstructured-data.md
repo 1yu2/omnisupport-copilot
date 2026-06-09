@@ -14,6 +14,21 @@ This runbook validates the Student Core path:
 
 Week07 does not build embeddings, create vector indexes, call an LLM, or generate citations.
 
+## Code Architecture Map
+
+![Week07 Parse / Normalize 代码架构图](../docs/assets/week07/parse-normalize-code-architecture.png)
+
+Read this map before running the commands below. It shows the Week07 file-level path:
+
+- `data/seed_manifests/manifest_week07_multimodal_v1.json` declares the input boundary for PDF, image, audio, and video.
+- `pipelines/parse_normalize/raw_loader.py` loads and validates raw assets into `SourceDocument`.
+- `pipelines/parse_normalize/parser_adapter.py` routes each modality to the classroom-safe parser path.
+- Exact PDF fallback label in artifacts is `pypdf_baseline`.
+- `pipelines/parse_normalize/chunking.py` creates structure-aware chunks with span and context fields.
+- `pipelines/parse_normalize/evidence_anchor.py` turns chunk provenance into queryable evidence anchors.
+- `pipelines/parse_normalize/quality_gate.py` decides whether chunks are safe for Week08 indexing.
+- `pipelines/parse_normalize/run_parse.py` ties the pipeline together and optionally persists rows to PostgreSQL.
+
 ## PPT Alignment Positioning
 
 The Week07 lesson deck uses the production vocabulary: Marker/Docling IDP, structure-aware chunking, late chunking, contextual retrieval, evidence anchors, quality reports, Whisper/pyannote, VLM/video, and CLIP-style multimodal retrieval. The repository maps those concepts to code paths without making heavy ML dependencies mandatory:

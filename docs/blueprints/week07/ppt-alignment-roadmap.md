@@ -2,6 +2,10 @@
 
 This note maps the Week07 lesson deck to code paths in the repository. It separates the classroom-safe implementation from optional production adapters.
 
+Architecture map:
+
+![Week07 Parse / Normalize 代码架构图](../../assets/week07/parse-normalize-code-architecture.png)
+
 ## L01 Parse: IDP Replaces Raw Text Extraction
 
 | Lesson concept | Repository path | Runtime status |
