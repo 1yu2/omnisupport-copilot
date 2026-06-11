@@ -14,6 +14,28 @@ This runbook validates the Student Core path:
 
 Week8 does not implement Week10 actions, Week11 full eval, Week12 tracing, Week13 GraphRAG, or Week14 release governance.
 
+## PPT Alignment Boundary
+
+The Week08 lesson deck uses several production labels. The runnable student
+core maps them to these repository paths:
+
+- `pipelines/retrieve/hybrid.py`: deck-compatible wrapper for the real runtime
+  in `services/rag_api/app/retrieval.py`.
+- `pipelines/retrieve/rerank.py`: deck-compatible rerank wrapper with the same
+  fallback semantics as the API service.
+- `pipelines/query/rewriter.py`: deterministic Query Rewrite / HyDE planning.
+- `pipelines/query/router.py`: deterministic Adaptive RAG route planning.
+- `services/rag_api/app/context_pruning.py`: top-k + token-budget context
+  pruning.
+- `services/rag_api/app/prompts/`: file-backed Prompt as Code templates.
+
+See `docs/blueprints/week08/ppt-alignment-gap-check.md` for the full
+"implemented / classroom fallback / deferred" map. In short: Hybrid retrieval,
+RRF, structured response, evidence-derived citations, prompt release ids, audit,
+and smoke eval are runnable. Cohere rerank, Anthropic native Citations API,
+Prompt Cache, LLM-as-Judge, bad-case replay, canary routing, and rollback
+execution are production extensions, not Week08 Student Core.
+
 ## Start local stack
 
 ```bash

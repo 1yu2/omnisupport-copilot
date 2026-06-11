@@ -17,6 +17,7 @@ from dataclasses import dataclass
 from typing import Sequence
 
 from app.config import settings
+from app.context_pruning import prune_contexts
 
 logger = logging.getLogger(__name__)
 
@@ -181,6 +182,26 @@ def load_prompt_template(name: str) -> str:
         return ""
 
 
+def render_evidence_prompt(question: str, chunks) -> tuple[str, str]:
+    """Render file-backed Week08 prompts for the contract-first endpoint."""
+
+    system_prompt = load_prompt_template("system_v1.md").strip() or SYSTEM_PROMPT
+    answer_template = load_prompt_template("answer_v1.md").strip()
+    context_blocks = build_context_blocks(chunks)
+    user_prompt = "\n\n".join(
+        part
+        for part in [
+            answer_template,
+            "## Retrieved evidence",
+            context_blocks,
+            "## User question",
+            question,
+        ]
+        if part
+    )
+    return system_prompt, user_prompt
+
+
 async def generate_grounded_answer(
     *,
     question: str,
@@ -192,7 +213,10 @@ async def generate_grounded_answer(
     Citations are intentionally not created here. They are derived by the router
     from retrieval evidence metadata so the LLM cannot invent source fields.
     """
-    if not chunks:
+    pruned = prune_contexts(chunks, max_chunks=5, token_budget=2500)
+    selected_chunks = pruned.chunks
+
+    if not selected_chunks:
         no_answer = load_prompt_template("no_answer_v1.md").strip()
         return (
             no_answer or "当前知识库未覆盖这个问题，无法在现有证据范围内稳定回答。",
@@ -200,7 +224,7 @@ async def generate_grounded_answer(
             "no_retrieval_results",
         )
 
-    confidence = _estimate_confidence(chunks)
+    confidence = _estimate_confidence(selected_chunks)
     if confidence < settings.retrieval_min_score:
         return (
             "已检索到候选证据，但置信度低于当前门禁，建议补充证据后再回答。",
@@ -209,13 +233,34 @@ async def generate_grounded_answer(
         )
 
     if not settings.anthropic_api_key:
-        top = chunks[0]
+        top = selected_chunks[0]
         answer = (
             "AI 生成服务未配置，以下返回最相关证据摘要作为可审计 fallback：\n\n"
             f"{top.content[:700]}"
         )
         return answer, confidence, None
 
-    # Keep the existing Claude path for now, but do not trust it for citations.
-    answer, _citations, llm_confidence = await generate_answer(question, chunks, prompt_release_id)
-    return answer, max(confidence, llm_confidence), None
+    try:
+        import anthropic
+
+        system_prompt, user_prompt = render_evidence_prompt(question, selected_chunks)
+        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        response = client.messages.create(
+            model=settings.llm_model,
+            max_tokens=settings.llm_max_tokens,
+            temperature=settings.llm_temperature,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+            metadata={"prompt_release_id": prompt_release_id},
+        )
+        answer = response.content[0].text
+        return answer, confidence, None
+    except Exception as exc:
+        logger.warning("Prompt-backed generation failed, using fallback: %s", exc)
+        top = selected_chunks[0]
+        return (
+            "AI 生成服务暂时不可用，以下返回最相关证据摘要作为可审计 fallback：\n\n"
+            f"{top.content[:700]}",
+            confidence,
+            None,
+        )

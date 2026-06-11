@@ -9,13 +9,13 @@ from __future__ import annotations
 import asyncio
 import os
 
-from dagster import AssetExecutionContext, asset
+from dagster import asset
 
 from pipelines.indexing.embedder import build_index
 
 
 @asset(group_name="week08_indexing")
-def week8_index_manifest(context: AssetExecutionContext) -> dict:
+def week8_index_manifest(context) -> dict:
     index_release_id = os.environ.get("WEEK08_INDEX_RELEASE_ID", "index-week08-dev")
     data_release_id = os.environ.get("WEEK08_DATA_RELEASE_ID", "data-week08-dev")
     chunk_strategy_version = os.environ.get("WEEK08_CHUNK_STRATEGY_VERSION", "section_aware_v1")
@@ -30,7 +30,7 @@ def week8_index_manifest(context: AssetExecutionContext) -> dict:
 
 
 @asset(group_name="week08_indexing", deps=[week8_index_manifest])
-def build_knowledge_index(context: AssetExecutionContext) -> dict:
+def build_knowledge_index(context) -> dict:
     stats = asyncio.run(
         build_index(
             index_release_id=os.environ.get("WEEK08_INDEX_RELEASE_ID", "index-week08-dev"),
