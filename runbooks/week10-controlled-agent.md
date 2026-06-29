@@ -7,6 +7,15 @@ Week10 把前几周的能力放进受控 Agent 执行框架：
 - Week09 的 Skill Pack 继续作为可发现、可版本治理的操作说明。
 - Week10 新增 `ticket_update` 这种可写动作，并要求幂等、HITL、fallback、action lineage。
 
+## Code Architecture Map
+
+![Week10 受控 Agent 文件级代码架构图](../docs/assets/week10/week10-controlled-agent-code-architecture.png)
+
+Read this map before running the commands below. Week10 is the control plane
+around tool execution: tool contracts define the allowed boundary,
+`ControlledAgent` enforces the boundary, and idempotency / HITL / fallback /
+lineage keep tool calls safe and traceable.
+
 ## 1. Inspect Tool Contracts
 
 ```bash
