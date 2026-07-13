@@ -15,6 +15,10 @@ COPY data ./data
 COPY analytics ./analytics
 COPY pipelines ./pipelines
 COPY services ./services
+COPY observability ./observability
+COPY agent ./agent
+COPY tools ./tools
+COPY evals ./evals
 
 RUN pip install --no-cache-dir \
     -r /tmp/rag_api_requirements.txt \
