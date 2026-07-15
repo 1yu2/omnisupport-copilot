@@ -15,6 +15,10 @@ COPY data ./data
 COPY analytics ./analytics
 COPY pipelines ./pipelines
 COPY services ./services
+COPY observability ./observability
+COPY agent ./agent
+COPY tools ./tools
+COPY evals ./evals
 COPY tests ./tests
 
 RUN pip install --no-cache-dir \
